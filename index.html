@@ -1,103 +1,131 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Ulasan Pelanggan</title>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; }
-    label { display: block; margin-top: 10px; }
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 2rem auto; }
+    label { display: block; margin-top: 1rem; }
     textarea { width: 100%; height: 80px; }
-    .rating { margin: 10px 0; }
-    button { margin-top: 10px; padding: 8px 16px; }
-    .ulasan-list { margin-top: 30px; }
-    .ulasan-item { border-bottom: 1px solid #ccc; padding: 10px 0; }
-    .rating-stars { color: #f39c12; }
+    .review { border-bottom: 1px solid #ccc; padding: 1rem 0; }
+    .stars { color: gold; }
+    .average { font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem; }
   </style>
 </head>
 <body>
-  <h1>Berikan Ulasan Anda</h1>
+
+  <h1>Ulasan Pelanggan</h1>
+
+  <div class="average" id="averageRating">Rata-rata Rating: --</div>
 
   <form id="reviewForm">
-    <label for="rating">Rating:</label>
-    <select id="rating" required>
-      <option value="">Pilih rating</option>
-      <option value="1">1 ⭐</option>
-      <option value="2">2 ⭐⭐</option>
-      <option value="3">3 ⭐⭐⭐</option>
-      <option value="4">4 ⭐⭐⭐⭐</option>
-      <option value="5">5 ⭐⭐⭐⭐⭐</option>
-    </select>
-
-    <label for="comment">Komentar:</label>
-    <textarea id="comment" placeholder="Tulis ulasan Anda..." required></textarea>
-
+    <label>
+      Nama: <br />
+      <input type="text" id="name" required />
+    </label>
+    <label>
+      Rating: <br />
+      <select id="rating" required>
+        <option value="">Pilih rating</option>
+        <option value="5">⭐️⭐️⭐️⭐️⭐️</option>
+        <option value="4">⭐️⭐️⭐️⭐️</option>
+        <option value="3">⭐️⭐️⭐️</option>
+        <option value="2">⭐️⭐️</option>
+        <option value="1">⭐️</option>
+      </select>
+    </label>
+    <label>
+      Komentar: <br />
+      <textarea id="comment" required></textarea>
+    </label>
     <button type="submit">Kirim Ulasan</button>
   </form>
 
-  <h2>Ulasan Pelanggan</h2>
-  <div id="reviews" class="ulasan-list"></div>
+  <h2>Daftar Ulasan</h2>
+  <div id="reviews"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
   <script>
-    // Ganti ini dengan config Firebase milik kamu
+    // TODO: Ganti dengan config Firebase kamu
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "API_KEY",
+      authDomain: "PROJECT_ID.firebaseapp.com",
+      projectId: "PROJECT_ID",
+      storageBucket: "PROJECT_ID.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
     };
 
+    // Init Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
     const reviewForm = document.getElementById('reviewForm');
     const reviewsDiv = document.getElementById('reviews');
+    const averageRatingDiv = document.getElementById('averageRating');
 
-    // Submit ulasan
+    // Submit form
     reviewForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const rating = document.getElementById('rating').value;
+
+      const name = document.getElementById('name').value.trim();
+      const rating = parseInt(document.getElementById('rating').value);
       const comment = document.getElementById('comment').value.trim();
 
-      if (!rating || !comment) {
-        alert('Rating dan komentar wajib diisi.');
+      if (!name || !rating || !comment) {
+        alert('Mohon isi semua kolom');
         return;
       }
 
-      try {
-        await db.collection('reviews').add({
-          rating: parseInt(rating),
-          comment: comment,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        alert('Terima kasih atas ulasan Anda!');
-        reviewForm.reset();
-      } catch (error) {
-        alert('Gagal mengirim ulasan: ' + error.message);
-      }
+      // Simpan ke Firestore
+      await db.collection('reviews').add({
+        name,
+        rating,
+        comment,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      reviewForm.reset();
     });
 
-    // Tampilkan ulasan realtime
+    // Fungsi tampilkan rating bintang
+    function starDisplay(rating) {
+      return '⭐️'.repeat(rating) + '☆'.repeat(5 - rating);
+    }
+
+    // Tampilkan semua ulasan dan rata-rata secara realtime
     db.collection('reviews')
-      .orderBy('createdAt', 'desc')
-      .onSnapshot(snapshot => {
-        reviewsDiv.innerHTML = '';
+      .orderBy('timestamp', 'desc')
+      .onSnapshot((snapshot) => {
+        let reviewsHtml = '';
+        let totalRating = 0;
+        let count = 0;
+
         snapshot.forEach(doc => {
           const data = doc.data();
-          const stars = '⭐'.repeat(data.rating);
-          const comment = data.comment;
-          const ulasanEl = document.createElement('div');
-          ulasanEl.classList.add('ulasan-item');
-          ulasanEl.innerHTML = `
-            <div class="rating-stars">${stars}</div>
-            <div>${comment}</div>
+          reviewsHtml += `
+            <div class="review">
+              <strong>${data.name}</strong> - <span class="stars">${starDisplay(data.rating)}</span><br/>
+              <p>${data.comment}</p>
+            </div>
           `;
-          reviewsDiv.appendChild(ulasanEl);
+          totalRating += data.rating;
+          count++;
         });
+
+        reviewsDiv.innerHTML = reviewsHtml;
+
+        if (count > 0) {
+          const avg = (totalRating / count).toFixed(2);
+          averageRatingDiv.textContent = `Rata-rata Rating: ${avg} ⭐️`;
+        } else {
+          averageRatingDiv.textContent = 'Rata-rata Rating: --';
+        }
       });
   </script>
+
 </body>
 </html>
