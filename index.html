@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ulasan Pelanggan</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; }
+    label { display: block; margin-top: 10px; }
+    textarea { width: 100%; height: 80px; }
+    .rating { margin: 10px 0; }
+    button { margin-top: 10px; padding: 8px 16px; }
+    .ulasan-list { margin-top: 30px; }
+    .ulasan-item { border-bottom: 1px solid #ccc; padding: 10px 0; }
+    .rating-stars { color: #f39c12; }
+  </style>
+</head>
+<body>
+  <h1>Berikan Ulasan Anda</h1>
+
+  <form id="reviewForm">
+    <label for="rating">Rating:</label>
+    <select id="rating" required>
+      <option value="">Pilih rating</option>
+      <option value="1">1 ⭐</option>
+      <option value="2">2 ⭐⭐</option>
+      <option value="3">3 ⭐⭐⭐</option>
+      <option value="4">4 ⭐⭐⭐⭐</option>
+      <option value="5">5 ⭐⭐⭐⭐⭐</option>
+    </select>
+
+    <label for="comment">Komentar:</label>
+    <textarea id="comment" placeholder="Tulis ulasan Anda..." required></textarea>
+
+    <button type="submit">Kirim Ulasan</button>
+  </form>
+
+  <h2>Ulasan Pelanggan</h2>
+  <div id="reviews" class="ulasan-list"></div>
+
+  <script>
+    // Ganti ini dengan config Firebase milik kamu
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const reviewForm = document.getElementById('reviewForm');
+    const reviewsDiv = document.getElementById('reviews');
+
+    // Submit ulasan
+    reviewForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const rating = document.getElementById('rating').value;
+      const comment = document.getElementById('comment').value.trim();
+
+      if (!rating || !comment) {
+        alert('Rating dan komentar wajib diisi.');
+        return;
+      }
+
+      try {
+        await db.collection('reviews').add({
+          rating: parseInt(rating),
+          comment: comment,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        alert('Terima kasih atas ulasan Anda!');
+        reviewForm.reset();
+      } catch (error) {
+        alert('Gagal mengirim ulasan: ' + error.message);
+      }
+    });
+
+    // Tampilkan ulasan realtime
+    db.collection('reviews')
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(snapshot => {
+        reviewsDiv.innerHTML = '';
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const stars = '⭐'.repeat(data.rating);
+          const comment = data.comment;
+          const ulasanEl = document.createElement('div');
+          ulasanEl.classList.add('ulasan-item');
+          ulasanEl.innerHTML = `
+            <div class="rating-stars">${stars}</div>
+            <div>${comment}</div>
+          `;
+          reviewsDiv.appendChild(ulasanEl);
+        });
+      });
+  </script>
+</body>
+</html>
